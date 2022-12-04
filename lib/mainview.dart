@@ -1,9 +1,7 @@
 import 'package:flutter/widgets.dart';
 import 'package:untitled3/message.dart';
 
-
 class MessageView extends ChangeNotifier {
-
   final List _messages = [];
 
   List get messages => _messages;

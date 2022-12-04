@@ -6,8 +6,13 @@ import 'package:untitled3/mainview.dart';
 import 'message.dart';
 
 class GroupItems extends StatefulWidget {
-
-  const GroupItems({super.key,});
+  final slug;
+  final id;
+   GroupItems({
+    super.key,
+    required this.slug,
+     required this.id
+  });
 
   @override
   State<GroupItems> createState() => _GroupItemsState();
@@ -20,7 +25,7 @@ class _GroupItemsState extends State<GroupItems> {
   TextEditingController _messageController = TextEditingController();
 
   void sendMessage() {
-    socket.emit("message", _messageController.text.trim());
+    socket.emit('message',_messageController.text);
     print("emit");
     _messageController.clear();
   }
@@ -29,7 +34,7 @@ class _GroupItemsState extends State<GroupItems> {
     socket = io(
       'http://e-camp.uz',
       OptionBuilder().setTransports(['websocket']).setQuery(
-        <dynamic, dynamic>{'userId': 171},
+        <dynamic, dynamic>{'userId': widget.id},
       ).build(),
     );
     socket.connect();
@@ -44,12 +49,12 @@ class _GroupItemsState extends State<GroupItems> {
       "pageState": null,
       "relevance": null,
       "hashtags": null,
-      "channelSlug": "d4ef5da4-e7f0-47b3-a84f-571d7c656adc",
+      "channelSlug": widget.slug,
     });
     socket.on('history', (data) {
       print(data);
-      MessageView mainView = Provider.of<MessageView>(context, listen: false);
-      mainView.addNewMessage(Message.fromJson(data));
+      Provider.of<MessageView>(context, listen: false)
+          .addNewMessage(Message.fromJson(data));
     });
   }
 
@@ -69,39 +74,44 @@ class _GroupItemsState extends State<GroupItems> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text("171"),
+        title: Text("chat ${widget.id}"),
       ),
       body: Column(
         children: [
           Expanded(
             child: Consumer<MessageView>(builder: (context, value, child) {
-              return ListView.builder(
-                padding: const EdgeInsets.all(16),
-                itemBuilder: (context, index) {
-                  return Wrap(
-                    children: [
-                      Card(
-                        color: Colors.red,
-                        child: Padding(
-                          padding: const EdgeInsets.all(8.0),
-                          child: Column(
-                            mainAxisSize: MainAxisSize.min,
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                value.messages[index].message ?? "",
-                                style: TextStyle(
-                                    color: Colors.black, fontSize: 34),
-                              ),
-                            ],
+              if (value.messages.isNotEmpty) {
+                final messages = value.messages[0].message;
+                return ListView.builder(
+                  padding: const EdgeInsets.all(16),
+                  itemBuilder: (context, index) {
+                    return Wrap(
+                      children: [
+                        Card(
+
+                          child: Padding(
+                            padding:  EdgeInsets.all(index+2),
+                            child: Column(
+                              mainAxisSize: MainAxisSize.min,
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text(
+                                  messages[index]['message'],
+                                  style: TextStyle(
+                                      color: Colors.black, fontSize: 34),
+                                ),
+                              ],
+                            ),
                           ),
-                        ),
-                      )
-                    ],
-                  );
-                },
-                itemCount: value.messages.length,
-              );
+                        )
+                      ],
+                    );
+                  },
+                  itemCount: messages.length ?? 0,
+                );
+              } else {
+                return const Text('Loading...');
+              }
             }),
           ),
           Container(
@@ -126,7 +136,7 @@ class _GroupItemsState extends State<GroupItems> {
                   IconButton(
                     onPressed: () {
                       if (_messageController.text.trim().isNotEmpty) {
-                        //  sendMessage();
+                        sendMessage();
                       }
                     },
                     icon: const Icon(Icons.send),

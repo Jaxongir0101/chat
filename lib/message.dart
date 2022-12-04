@@ -11,7 +11,7 @@ class Message {
 
   factory Message.fromJson(Map<String, dynamic> message) {
     return Message(
-      message: message['message'],
+      message: message['messages'],
       pageState: message['pageState'],
       end: message['end'],
     );
