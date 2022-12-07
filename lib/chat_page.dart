@@ -8,25 +8,43 @@ import 'message.dart';
 class GroupItems extends StatefulWidget {
   final slug;
   final id;
-   GroupItems({
-    super.key,
-    required this.slug,
-     required this.id
-  });
+  GroupItems({super.key, required this.slug, required this.id});
 
   @override
   State<GroupItems> createState() => _GroupItemsState();
 }
 
 class _GroupItemsState extends State<GroupItems> {
-  bool isFocus = false;
-  bool isUpArrow = false;
   late IO.Socket socket;
-  TextEditingController _messageController = TextEditingController();
+  final TextEditingController _messageController = TextEditingController();
 
-  void sendMessage() {
-    socket.emit('message',_messageController.text);
-    print("emit");
+  bool _isLoading = false;
+
+  void sendMessage(String message) {
+    String messageText = message.trim();
+    message = '';
+
+    if (messageText != '') {
+      socket.emit('message', {
+        "id": widget.id,
+        "userId": 168,
+        "type": "text",
+        "message": messageText,
+        "channelSlug": widget.slug,
+        "isReply": false,
+        "hashtags": null,
+        "relevance": 0,
+        "mediaUrl": null,
+        "mediaTitle": null,
+        "msgLocation": null,
+        "minRelevance": null,
+        "taggedUserId": 0,
+        "videoThumbnail": null,
+        "originMessageId": null,
+        "originMessageTimestamp": null,
+        "originRelevance": null,
+      });
+    }
     _messageController.clear();
   }
 
@@ -34,15 +52,13 @@ class _GroupItemsState extends State<GroupItems> {
     socket = io(
       'http://e-camp.uz',
       OptionBuilder().setTransports(['websocket']).setQuery(
-        <dynamic, dynamic>{'userId': widget.id},
+        <dynamic, dynamic>{'userId': 168},
       ).build(),
     );
     socket.connect();
-
     socket.onConnect((data) {
       print("connect");
     });
-
     socket.onConnectError((data) => print('Connect Error: $data'));
     socket.onDisconnect((data) => print('Socket.IO server disconnected'));
     socket.emit('history', {
@@ -55,8 +71,17 @@ class _GroupItemsState extends State<GroupItems> {
       print(data);
       Provider.of<MessageView>(context, listen: false)
           .addNewMessage(Message.fromJson(data));
+      _isLoading = false;
     });
   }
+
+  Stream generateNumbers = (() async* {
+
+    socket.on('message', (data) {
+      Provider.of<MessageView>(context, listen: false)
+          .addNewMessage(Message.fromJson(data));
+    });
+  })();
 
   @override
   void initState() {
@@ -66,54 +91,88 @@ class _GroupItemsState extends State<GroupItems> {
 
   @override
   void dispose() {
+    socket.close();
+    socket.dispose();
     _messageController.dispose();
+
     super.dispose();
   }
 
   @override
   Widget build(BuildContext context) {
+
     return Scaffold(
       appBar: AppBar(
         title: Text("chat ${widget.id}"),
       ),
       body: Column(
         children: [
-          Expanded(
-            child: Consumer<MessageView>(builder: (context, value, child) {
-              if (value.messages.isNotEmpty) {
-                final messages = value.messages[0].message;
-                return ListView.builder(
-                  padding: const EdgeInsets.all(16),
-                  itemBuilder: (context, index) {
-                    return Wrap(
-                      children: [
-                        Card(
-
-                          child: Padding(
-                            padding:  EdgeInsets.all(index+2),
-                            child: Column(
-                              mainAxisSize: MainAxisSize.min,
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Text(
-                                  messages[index]['message'],
-                                  style: TextStyle(
-                                      color: Colors.black, fontSize: 34),
-                                ),
-                              ],
-                            ),
-                          ),
-                        )
-                      ],
+          StreamBuilder(builder: (
+            context,
+            AsyncSnapshot<int> snapshot,
+          ) {
+            return Expanded(
+              child: Consumer<MessageView>(
+                builder: (context, value, child) {
+                  if (!_isLoading && value.messages.isNotEmpty) {
+                    final messages = value.messages[0].message;
+                    return ListView.builder(
+                      reverse: true,
+                      padding: const EdgeInsets.all(16),
+                      itemBuilder: (context, index) {
+                        messages.reversed;
+                        final message = messages[index]["message"];
+                        return Row(
+                          mainAxisSize: MainAxisSize.min,
+                          mainAxisAlignment: messages?[index]['userId'] == -1
+                              ? MainAxisAlignment.center
+                              : messages?[index]['userId'] == 168
+                                  ? MainAxisAlignment.end
+                                  : MainAxisAlignment.start,
+                          children: [
+                            messages?[index]['userId'] != -1
+                                ? Container(
+                                    margin: EdgeInsets.only(top: 42),
+                                    padding: EdgeInsets.all(8),
+                                    alignment: Alignment.centerRight,
+                                    decoration: BoxDecoration(
+                                        borderRadius: BorderRadius.circular(12),
+                                        color: Colors.white,
+                                        boxShadow: [
+                                          BoxShadow(
+                                            color:
+                                                Color(0xff056676).withAlpha(96),
+                                            offset: Offset(16, 24),
+                                            blurRadius: 96,
+                                            spreadRadius: 32,
+                                          ),
+                                        ]),
+                                    child: Text(
+                                      message ?? "--",
+                                      style: TextStyle(
+                                        color: Colors.black,
+                                        fontSize: 16,
+                                        fontWeight: FontWeight.w700,
+                                      ),
+                                    ),
+                                  )
+                                : Text(
+                                    message ?? "--",
+                                  )
+                          ],
+                        );
+                      },
+                      itemCount: messages.length ?? 0,
                     );
-                  },
-                  itemCount: messages.length ?? 0,
-                );
-              } else {
-                return const Text('Loading...');
-              }
-            }),
-          ),
+                  } else {
+                    return const Center(
+                      child: CircularProgressIndicator(),
+                    );
+                  }
+                },
+              ),
+            );
+          }),
           Container(
             decoration: BoxDecoration(
               color: Colors.grey.shade200,
@@ -136,7 +195,7 @@ class _GroupItemsState extends State<GroupItems> {
                   IconButton(
                     onPressed: () {
                       if (_messageController.text.trim().isNotEmpty) {
-                        sendMessage();
+                        sendMessage(_messageController.text);
                       }
                     },
                     icon: const Icon(Icons.send),

@@ -1,6 +1,6 @@
 class Message {
   final List? message;
-  final pageState;
+  final dynamic pageState;
   final bool? end;
 
   Message({
